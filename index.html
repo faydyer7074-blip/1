@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="连铸保护渣浆料配水黏度预测工具。输入首末实测点，计算中间黏度，保存预测并比较中间实测。">
+  <meta name="theme-color" content="#17695b">
+  <title>浆料黏度预测 · 配水计算与实测验证</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%2317695b'/%3E%3Ctext x='11' y='28' fill='white' font-size='29' font-family='serif'%3Eη%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="core.js"></script>
+  <script defer src="observations.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+<header class="site-header"><div class="header-inner">
+  <a class="brand" href="#" aria-label="浆料黏度预测首页"><span class="brand-mark" aria-hidden="true">η</span><span><strong>浆料黏度预测</strong><small>连铸保护渣 · 配水计算工具</small></span></a>
+  <nav class="tabs" aria-label="主要功能"><button class="tab active" id="tab-predict" aria-selected="true" aria-controls="predict-panel">黏度预测</button><button class="tab" id="tab-validate" aria-selected="false" aria-controls="validate-panel">实测验证</button></nav>
+  <button class="text-button header-help" id="open-help">方法说明 <span aria-hidden="true">↗</span></button>
+</div></header>
+<main class="shell">
+  <section class="page-intro"><div><p class="eyebrow">固定配方 · 首末点标定</p><h1 id="page-title">已测首末点，预测中间黏度</h1><p id="page-description">输入两次实测，查看同一配方在配水区间内的黏度变化。</p></div><div class="method-badge"><span class="status-dot"></span><span id="active-method-label">两端幂律模型</span></div></section>
+  <section id="predict-panel" aria-labelledby="tab-predict">
+    <div class="workspace">
+      <form id="predict-form" class="card input-card" novalidate>
+        <div class="card-top"><h2><span class="step-label">01</span>输入实测端点</h2><label class="unit-control" for="unit">黏度单位<select id="unit"><option value="Pa.s">Pa·s</option><option value="mPa.s">mPa·s</option></select></label></div>
+        <div class="endpoint-group"><h3><span class="point-key blue square"></span>首点</h3><div class="field-pair"><label>水干比 r<sub>a</sub><input id="r0" type="number" inputmode="decimal" step="any" placeholder="例如 0.45" autocomplete="off"></label><label>实测黏度 η<sub>a</sub><input id="eta0" type="number" inputmode="decimal" step="any" placeholder="填写实测值" autocomplete="off"></label></div></div>
+        <div class="endpoint-group"><h3><span class="point-key blue square"></span>末点</h3><div class="field-pair"><label>水干比 r<sub>b</sub><input id="r1" type="number" inputmode="decimal" step="any" placeholder="例如 1.00" autocomplete="off"></label><label>实测黏度 η<sub>b</sub><input id="eta1" type="number" inputmode="decimal" step="any" placeholder="填写实测值" autocomplete="off"></label></div></div>
+        <div class="targets-field"><div class="field-label-row"><label for="ratios">要预测的中间水干比</label><button id="generate-ratios" type="button" class="small-link">均匀生成 4 个</button></div><input id="ratios" type="text" inputmode="decimal" placeholder="例如 0.55, 0.65, 0.75, 0.85" autocomplete="off"><p class="field-hint">多个位置用逗号或空格分隔。</p></div>
+        <p class="form-error" id="predict-error" role="alert" hidden></p>
+        <button class="primary-button" type="submit">计算中间黏度 <span aria-hidden="true">→</span></button>
+        <p class="form-footnote">水干比 = 加水质量 ÷ 配料粉体质量。只计算首末点之间的位置。</p>
+      </form>
+      <div class="results-column">
+        <section class="card chart-card"><div class="card-top"><div><p class="overline">预测结果</p><h2>配水—黏度曲线</h2></div><span class="range-badge" id="prediction-range">等待输入</span></div>
+          <div class="chart-wrap" id="prediction-chart" aria-live="polite"></div>
+          <div class="chart-legend"><span><i class="legend-line"></i>预测曲线</span><span><i class="legend-endpoint"></i>首末实测</span><span><i class="legend-hollow"></i>中间预测</span></div>
+          <div class="result-strip" id="result-strip" hidden><div><span>中间预测位置</span><strong id="count-result">—</strong></div><div><span>稀释指数 β</span><strong id="beta-result">—</strong></div><div><span>预测黏度范围</span><strong id="eta-range-result">—</strong></div></div>
+          <p class="soft-notice" id="prediction-notice" hidden></p>
+        </section>
+        <section class="card data-card"><div class="data-actions"><details id="prediction-data"><summary>查看预测数值 <span id="table-count"></span></summary><div id="prediction-table" class="table-scroll"></div></details><div class="action-buttons"><button id="download-csv" class="secondary-button" disabled>导出 CSV</button><button id="download-png" class="secondary-button" disabled>导出图片</button><button id="save-prediction" class="secondary-button emphasized" disabled>保存预测记录</button></div></div></section>
+      </div>
+    </div>
+    <details class="card optional-card" id="physics-details"><summary><span>物性分析 <small>可选 · K–D 模型</small></span><span class="summary-hint">有对应物性后使用</span></summary><div class="optional-body">
+      <p>当前首页使用两端幂律。K–D 是独立的物性计算：用实际密度求固相体积分数，再加入液相黏度与极限浓度参数。</p>
+      <div class="physics-layout"><div><label>极限浓度 φ<sub>m</sub><input type="number" id="phi-max" step="any" placeholder="填写已确定的参数"></label><label>参数来源与固液相定义<textarea id="physics-source" rows="3" placeholder="记录密度、液相黏度及 φm 的测量或校准依据"></textarea></label><label>物性来源<select id="physics-kind"><option value="measured">实测物性 / 独立校准</option><option value="literature">文献参数情景</option><option value="assumed">假设参数情景</option></select></label></div><div><label>各配水位置物性（含首末及待预测位置）<textarea id="physics-properties" rows="7" placeholder="每行：r, 浆料密度, 颗粒密度, 液相密度, 液相黏度, 气体体积分数"></textarea></label><p class="field-hint">密度统一 g/cm³，液相黏度统一 Pa·s，气体体积分数为 0–1。</p></div></div>
+      <div class="field-pair"><label>颗粒体积定义<select id="solid-definition"><option value="">请选择实际密度对应的定义</option><option value="skeletal_excludes_accessible_pores">气体骨架体积，排除可进入孔隙</option><option value="true_material_excludes_all_pores">材料真体积，排除全部孔隙</option><option value="envelope_includes_intraparticle_pores">颗粒外包络，包含颗粒内孔</option><option value="operational_defined_other">其他操作定义，已在来源中写明</option></select></label><label>气体处理<select id="gas-treatment"><option value="">请选择处理方式</option><option value="specified_fraction">各点已给定气体体积分数</option><option value="negligible_assumption">采用忽略气体假设，各点填 0</option></select></label></div>
+      <div class="physics-checks"><label><input type="checkbox" id="physics-matched"> 温度、龄期及物性状态对应一致</label><label><input type="checkbox" id="physics-phases"> 固液相体积定义清楚且不重复计数，气体质量可忽略</label></div>
+      <p class="form-error" id="physics-error" role="alert" hidden></p><button id="calculate-physics" class="secondary-button">计算物性模型并对比</button><div id="physics-result" hidden></div>
+    </div></details>
+  </section>
+  <section id="validate-panel" aria-labelledby="tab-validate" hidden>
+    <div class="workspace"><section class="card input-card"><div class="card-top"><h2><span class="step-label">02</span>对照中间实测</h2></div>
+      <label class="file-drop" for="prediction-file"><span class="upload-icon" aria-hidden="true">↥</span><strong>打开已保存的预测记录</strong><span>选择 JSON 文件，恢复输入与预测</span><input id="prediction-file" type="file" accept=".json,application/json"></label>
+      <button id="use-current" class="small-link use-current">或使用本页当前预测</button><div class="record-info" id="record-info" hidden></div><div id="record-model-info" hidden></div>
+      <label class="block-label" for="observations">粘贴中间点实测数据</label><textarea id="observations" rows="7" placeholder="每行两列：水干比，实测黏度&#10;可直接从 Excel 复制两列"></textarea>
+      <label class="observation-unit">实测黏度单位<select id="observation-unit"><option value="Pa.s">Pa·s</option><option value="mPa.s">mPa·s</option></select></label>
+      <label class="confirm-line"><input type="checkbox" id="same-conditions"> 实测数据与该预测属于同一配方和本轮验证条件</label>
+      <p class="form-error" id="validate-error" role="alert" hidden></p><button id="compare-observations" class="primary-button">比较预测与实测 <span aria-hidden="true">→</span></button>
+      <p class="form-footnote">首末已知点不计入误差；同一水比的重复读数先取平均。</p>
+    </section><div class="results-column"><section class="card chart-card"><div class="card-top"><div><p class="overline">验证结果</p><h2>预测与实测对照</h2></div><span class="range-badge" id="validation-status">等待记录</span></div><div id="validation-chart" class="chart-wrap"></div><div class="chart-legend"><span><i class="legend-line"></i>预测曲线</span><span><i class="legend-measured"></i>中间实测</span><span><i class="legend-error"></i>对应误差</span></div>
+      <div class="metrics-grid" id="validation-metrics" hidden></div><p id="validation-note" class="form-footnote"></p></section><section class="card data-card"><details id="validation-data"><summary>查看逐点误差</summary><div id="validation-table" class="table-scroll"></div></details><div class="action-buttons validation-exports"><button id="export-validation" class="secondary-button" disabled>导出验证 CSV</button><button id="export-validation-png" class="secondary-button" disabled>导出对照图</button></div></section></div></div>
+  </section>
+  <footer class="site-footer"><span>固定配方与工艺下的配水预测</span><span>填写的数据在当前浏览器计算，保存与导出由你操作。</span></footer>
+</main>
+<dialog id="record-dialog"><form id="record-form" novalidate><div class="dialog-top"><h2>保存预测记录</h2><button type="button" class="icon-button" data-close="record-dialog" aria-label="关闭">×</button></div><p>补充实验信息，便于之后准确对照实测。</p><div class="field-pair"><label>配方编号<input id="formula-id" autocomplete="off"></label><label>本轮验证组 / 批次<input id="batch-id" autocomplete="off"></label></div><label>配方组成记录<textarea id="recipe-text" rows="3" placeholder="原料比例或对应的原始记录编号"></textarea></label><label>制浆与测量条件<textarea id="conditions" rows="3" placeholder="记录制浆方法、转子、转速、温度及龄期等"></textarea></label><p class="form-error" id="record-error" role="alert" hidden></p><button class="primary-button" type="submit">下载预测 JSON</button></form></dialog>
+<dialog id="help-dialog"><div class="dialog-top"><h2>方法与使用顺序</h2><button class="icon-button" data-close="help-dialog" aria-label="关闭">×</button></div><div class="help-content"><ol><li>录入同一配方的首末实测值和中间水干比，计算预测。</li><li>保存预测记录，再将中间点的实测值用于验证。</li><li>在“实测验证”打开记录或使用当前预测，粘贴两列数据。</li></ol><h3>首页采用两端幂律</h3><p class="formula">η̂(r) = η<sub>a</sub> (r/r<sub>a</sub>)<sup>−β</sup><br>β = ln(η<sub>a</sub>/η<sub>b</sub>) / ln(r<sub>b</sub>/r<sub>a</sub>)</p><p>水干比 r = 加水质量 / 配料粉体质量。两端已知黏度决定曲线水平和下降斜率，配方组成在此方法中用于标识实验条件。</p><h3>与 Ridge、K–D 的区别</h3><p>Ridge 是未测目标料黏度时的历史数据预测；首页是已有首末实测后的区间预测；下方 K–D 为使用对应物性的独立计算。它们不是同一公式的变形。</p><h3>怎样读误差</h3><p>MAE 为平均绝对误差，RMSE 更重视较大误差，单位均为 Pa·s。n 为评分的不同中间配水位置数。已知端点不评分，同位置重复读数取均值。R² 在少于两点或实测值相同时不报告。</p><h3>记录与隐私</h3><p>计算、文件读取和导出在你的浏览器内完成。页面不提交你的配方、黏度或物性数据。保存文件需要你主动下载；刷新页面会清空未保存输入。</p><p>预测 JSON 含输入、条件和结果，可复算核对。其时间来自设备，不能单凭该文件证明中间实测此前未被查看。独立新批次结论需对应实验记录。</p><h3>物性模型依据</h3><p>K–D：η = η<sub>l</sub>(1−φ/φ<sub>m</sub>)<sup>−p</sup>。φ 由对应密度计算，φ<sub>m</sub>来自独立浓度校准或堆积依据，首末黏度只用于估计 p。</p><p><a href="https://doi.org/10.1016/j.powtec.2014.05.044" target="_blank" rel="noopener noreferrer">Konijn et al. Powder Technol., 2014, 266: 61–69.</a><br><a href="https://doi.org/10.1007/s00397-021-01320-1" target="_blank" rel="noopener noreferrer">Wilms et al. Rheol. Acta, 2022, 61: 123–138.</a></p></div></dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+</body></html>
