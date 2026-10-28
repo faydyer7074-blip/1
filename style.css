@@ -147,6 +147,9 @@ tbody tr:hover { background: #f6f9f5; }
 input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--green); margin: 3px 0 0; flex-shrink: 0; }
 .physics-summary { margin: 20px 0 14px; padding: 16px 0 0; border-top: 1px solid var(--line); font-size: 14px; }
 #physics-result { margin-top: 20px; overflow-wrap: anywhere; }
+#physics-chart { min-height: 0; margin-top: 18px; }
+#normalized-fields > label, #full-physics-fields > label { margin-top: 14px; }
+.optional-body > label, .optional-body > .field-pair { margin-top: 16px; }
 .file-drop { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px; position: relative; text-align: center; min-height: 145px; padding: 20px 14px; border: 1px dashed #b8cbbd; border-radius: 10px; background: #f8faf7; cursor: pointer; }
 .file-drop:hover, .file-drop:focus-within { background: #eef5ed; border-color: var(--green); }
 .file-drop strong { color: #49644f; font-size: 13px; font-weight: 600; }

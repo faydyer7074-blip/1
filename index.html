@@ -7,10 +7,10 @@
   <meta name="theme-color" content="#17695b">
   <title>浆料黏度预测 · 配水计算与实测验证</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%2317695b'/%3E%3Ctext x='11' y='28' fill='white' font-size='29' font-family='serif'%3Eη%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="style.css">
-  <script defer src="core.js"></script>
-  <script defer src="observations.js"></script>
-  <script defer src="app.js"></script>
+  <link rel="stylesheet" href="style.css?v=1.2.0-20261028b">
+  <script defer src="core.js?v=1.2.0-20261028b"></script>
+  <script defer src="observations.js?v=1.2.0-20261028b"></script>
+  <script defer src="app.js?v=1.2.0-20261028b"></script>
 </head>
 <body>
 <header class="site-header"><div class="header-inner">
@@ -41,18 +41,32 @@
         <section class="card data-card"><div class="data-actions"><details id="prediction-data"><summary>查看预测数值 <span id="table-count"></span></summary><div id="prediction-table" class="table-scroll"></div></details><div class="action-buttons"><button id="download-csv" class="secondary-button" disabled>导出 CSV</button><button id="download-png" class="secondary-button" disabled>导出图片</button><button id="save-prediction" class="secondary-button emphasized" disabled>保存预测记录</button></div></div></section>
       </div>
     </div>
-    <details class="card optional-card" id="physics-details"><summary><span>物性分析 <small>可选 · K–D 模型</small></span><span class="summary-hint">有对应物性后使用</span></summary><div class="optional-body">
-      <p>当前首页使用两端幂律。K–D 是独立的物性计算：用实际密度求固相体积分数，再加入液相黏度与极限浓度参数。</p>
-      <div class="physics-layout"><div><label>极限浓度 φ<sub>m</sub><input type="number" id="phi-max" step="any" placeholder="填写已确定的参数"></label><label>参数来源与固液相定义<textarea id="physics-source" rows="3" placeholder="记录密度、液相黏度及 φm 的测量或校准依据"></textarea></label><label>物性来源<select id="physics-kind"><option value="measured">实测物性 / 独立校准</option><option value="literature">文献参数情景</option><option value="assumed">假设参数情景</option></select></label></div><div><label>各配水位置物性（含首末及待预测位置）<textarea id="physics-properties" rows="7" placeholder="每行：r, 浆料密度, 颗粒密度, 液相密度, 液相黏度, 气体体积分数"></textarea></label><p class="field-hint">密度统一 g/cm³，液相黏度统一 Pa·s，气体体积分数为 0–1。</p></div></div>
+    <details class="card optional-card" id="physics-details"><summary><span>物性分析 <small>可选 · K–D 模型</small></span><span class="summary-hint">体积分数与堆积参数</span></summary><div class="optional-body">
+      <label>计算方式<select id="physics-method"><option value="kd_endpoint_normalized">两端归一化 K–D · 无需液相黏度绝对值</option><option value="kd_physical_candidate">完整 K–D · 密度与液相黏度</option></select></label>
+      <p id="physics-intro">用首末实测确定有效指数 p，再按体积分数计算中间黏度。液相黏度不变时只需 φ、φm；变化时输入液相黏度比。</p>
+      <div id="normalized-fields">
+        <div class="field-pair"><label>体积分数定义<select id="phi-basis"><option value="">请选择 φ 的含义</option><option value="material_volume">固相材料体积 / 固液总体积</option><option value="nominal_dry_volume">名义干料体积分数（计算情景）</option><option value="effective_volume">有效体积分数（已给定计算依据）</option></select></label><label>液相黏度处理<select id="liquid-mode"><option value="constant">按液相黏度不变计算 · g = 1</option><option value="specified_ratio">输入各点与首点的液相黏度比 g</option></select></label></div>
+        <label id="constant-liquid-line" class="confirm-line"><input type="checkbox" id="constant-liquid-confirmed"> 本次采用液相黏度不随配水变化的计算条件</label>
+        <label>各配水位置的体积分数（含首末及中间位置）<textarea id="normalized-properties" rows="5" placeholder="每行：水干比 r, 体积分数 φ"></textarea></label>
+        <p class="field-hint" id="normalized-hint">φ 用 0–1 小数。名义干料换算含全干料不溶与体积可加条件，需写入来源。原料溶解时，该值与湿态真实固相体积分数不同。</p>
+      </div>
+      <div id="full-physics-fields" hidden>
+      <label>各点物性（含首末及中间位置）<textarea id="physics-properties" rows="6" placeholder="每行：r, 浆料密度, 颗粒密度, 液相密度, 液相黏度, 气体体积分数"></textarea></label>
+      <p class="field-hint">密度统一 g/cm³，液相黏度统一 Pa·s，气体体积分数为 0–1。</p>
       <div class="field-pair"><label>颗粒体积定义<select id="solid-definition"><option value="">请选择实际密度对应的定义</option><option value="skeletal_excludes_accessible_pores">气体骨架体积，排除可进入孔隙</option><option value="true_material_excludes_all_pores">材料真体积，排除全部孔隙</option><option value="envelope_includes_intraparticle_pores">颗粒外包络，包含颗粒内孔</option><option value="operational_defined_other">其他操作定义，已在来源中写明</option></select></label><label>气体处理<select id="gas-treatment"><option value="">请选择处理方式</option><option value="specified_fraction">各点已给定气体体积分数</option><option value="negligible_assumption">采用忽略气体假设，各点填 0</option></select></label></div>
-      <div class="physics-checks"><label><input type="checkbox" id="physics-matched"> 温度、龄期及物性状态对应一致</label><label><input type="checkbox" id="physics-phases"> 固液相体积定义清楚且不重复计数，气体质量可忽略</label></div>
+      <div class="physics-checks"><label><input type="checkbox" id="physics-phases"> 固液相体积定义清楚且不重复计数，气体质量可忽略</label></div>
+      </div>
+      <div class="field-pair"><label>最大堆积参数 φ<sub>m</sub><input type="number" id="phi-max" step="any" placeholder="填写有依据的参数，0 &lt; φm &lt; 1"></label><label>物性来源<select id="physics-kind"><option value="">请选择来源类型</option><option value="measured">实测物性 / 独立校准</option><option value="literature">文献参数情景</option><option value="assumed">假设参数情景</option></select></label></div>
+      <label>φ<sub>m</sub> 的来源<input id="phi-max-source" placeholder="文献、独立堆积计算或浓度校准记录"></label>
+      <label>体积分数、液相条件及参数依据<textarea id="physics-source" rows="3" placeholder="写明 φ 怎样得到、固液相定义，以及液相不变或液相比的依据"></textarea></label>
+      <label class="confirm-line"><input type="checkbox" id="physics-matched"> 各点体积定义一致，配方、工艺与测量条件对应</label>
       <p class="form-error" id="physics-error" role="alert" hidden></p><button id="calculate-physics" class="secondary-button">计算物性模型并对比</button><div id="physics-result" hidden></div>
     </div></details>
   </section>
   <section id="validate-panel" aria-labelledby="tab-validate" hidden>
     <div class="workspace"><section class="card input-card"><div class="card-top"><h2><span class="step-label">02</span>对照中间实测</h2></div>
       <label class="file-drop" for="prediction-file"><span class="upload-icon" aria-hidden="true">↥</span><strong>打开已保存的预测记录</strong><span>选择 JSON 文件，恢复输入与预测</span><input id="prediction-file" type="file" accept=".json,application/json"></label>
-      <button id="use-current" class="small-link use-current">或使用本页当前预测</button><div class="record-info" id="record-info" hidden></div><div id="record-model-info" hidden></div>
+      <button id="use-current" class="small-link use-current">或使用本页两端幂律预测</button><div class="record-info" id="record-info" hidden></div><div id="record-model-info" hidden></div>
       <label class="block-label" for="observations">粘贴中间点实测数据</label><textarea id="observations" rows="7" placeholder="每行两列：水干比，实测黏度&#10;可直接从 Excel 复制两列"></textarea>
       <label class="observation-unit">实测黏度单位<select id="observation-unit"><option value="Pa.s">Pa·s</option><option value="mPa.s">mPa·s</option></select></label>
       <label class="confirm-line"><input type="checkbox" id="same-conditions"> 实测数据与该预测属于同一配方和本轮验证条件</label>
@@ -64,6 +78,16 @@
   <footer class="site-footer"><span>固定配方与工艺下的配水预测</span><span>填写的数据在当前浏览器计算，保存与导出由你操作。</span></footer>
 </main>
 <dialog id="record-dialog"><form id="record-form" novalidate><div class="dialog-top"><h2>保存预测记录</h2><button type="button" class="icon-button" data-close="record-dialog" aria-label="关闭">×</button></div><p>补充实验信息，便于之后准确对照实测。</p><div class="field-pair"><label>配方编号<input id="formula-id" autocomplete="off"></label><label>本轮验证组 / 批次<input id="batch-id" autocomplete="off"></label></div><label>配方组成记录<textarea id="recipe-text" rows="3" placeholder="原料比例或对应的原始记录编号"></textarea></label><label>制浆与测量条件<textarea id="conditions" rows="3" placeholder="记录制浆方法、转子、转速、温度及龄期等"></textarea></label><p class="form-error" id="record-error" role="alert" hidden></p><button class="primary-button" type="submit">下载预测 JSON</button></form></dialog>
-<dialog id="help-dialog"><div class="dialog-top"><h2>方法与使用顺序</h2><button class="icon-button" data-close="help-dialog" aria-label="关闭">×</button></div><div class="help-content"><ol><li>录入同一配方的首末实测值和中间水干比，计算预测。</li><li>保存预测记录，再将中间点的实测值用于验证。</li><li>在“实测验证”打开记录或使用当前预测，粘贴两列数据。</li></ol><h3>首页采用两端幂律</h3><p class="formula">η̂(r) = η<sub>a</sub> (r/r<sub>a</sub>)<sup>−β</sup><br>β = ln(η<sub>a</sub>/η<sub>b</sub>) / ln(r<sub>b</sub>/r<sub>a</sub>)</p><p>水干比 r = 加水质量 / 配料粉体质量。两端已知黏度决定曲线水平和下降斜率，配方组成在此方法中用于标识实验条件。</p><h3>与 Ridge、K–D 的区别</h3><p>Ridge 是未测目标料黏度时的历史数据预测；首页是已有首末实测后的区间预测；下方 K–D 为使用对应物性的独立计算。它们不是同一公式的变形。</p><h3>怎样读误差</h3><p>MAE 为平均绝对误差，RMSE 更重视较大误差，单位均为 Pa·s。n 为评分的不同中间配水位置数。已知端点不评分，同位置重复读数取均值。R² 在少于两点或实测值相同时不报告。</p><h3>记录与隐私</h3><p>计算、文件读取和导出在你的浏览器内完成。页面不提交你的配方、黏度或物性数据。保存文件需要你主动下载；刷新页面会清空未保存输入。</p><p>预测 JSON 含输入、条件和结果，可复算核对。其时间来自设备，不能单凭该文件证明中间实测此前未被查看。独立新批次结论需对应实验记录。</p><h3>物性模型依据</h3><p>K–D：η = η<sub>l</sub>(1−φ/φ<sub>m</sub>)<sup>−p</sup>。φ 由对应密度计算，φ<sub>m</sub>来自独立浓度校准或堆积依据，首末黏度只用于估计 p。</p><p><a href="https://doi.org/10.1016/j.powtec.2014.05.044" target="_blank" rel="noopener noreferrer">Konijn et al. Powder Technol., 2014, 266: 61–69.</a><br><a href="https://doi.org/10.1007/s00397-021-01320-1" target="_blank" rel="noopener noreferrer">Wilms et al. Rheol. Acta, 2022, 61: 123–138.</a></p></div></dialog>
+<dialog id="help-dialog"><div class="dialog-top"><h2>方法与使用顺序</h2><button class="icon-button" data-close="help-dialog" aria-label="关闭">×</button></div><div class="help-content">
+<ol><li>输入同一配方的首末实测黏度和中间水干比，计算两端幂律。</li><li>有体积分数及堆积参数时，展开“物性分析”对照 K–D。</li><li>保存所选模型记录，用中间实测点检验。已知首末点不评分。</li></ol>
+<h3>两端幂律</h3><p class="formula">η̂(r) = η<sub>a</sub>(r/r<sub>a</sub>)<sup>−β</sup><br>β = ln(η<sub>a</sub>/η<sub>b</sub>) / ln(r<sub>b</sub>/r<sub>a</sub>)</p>
+<p>r = 加水质量 / 配料粉体质量。首末实测决定曲线水平和稀释斜率。配方组成在此方法中用于记录条件。Ridge 则从历史配方、工艺和配水特征估计黏度，本站不运行 Python Ridge。</p>
+<h3>两端归一化 K–D</h3><p class="formula">F = 1 − φ/φ<sub>m</sub>，g = η<sub>l</sub>(r)/η<sub>l</sub>(r<sub>a</sub>)<br>η̂ = η<sub>a</sub>g(F/F<sub>a</sub>)<sup>−p</sup><br>p = [ln(η<sub>a</sub>/η<sub>b</sub>) + ln(g<sub>b</sub>)] / ln(F<sub>b</sub>/F<sub>a</sub>)</p>
+<p>φ 为该位置的固相体积分数，φm 为有独立依据的最大堆积参数。先给定这些参数和液相比，再由首末实测求一个有效指数 p。液相黏度不变时 g = 1，绝对液相黏度约掉；仅同温度并不等于液相组成不变。若已知液相随配水变化，输入各点 g，首点为 1。</p>
+<p>φ 可来自实测、文献方案或明确的假设情景，页面和导出文件保留其类型。名义干料体积分数需注明全干料不溶与体积可加条件；原料发生溶解时，该值与湿态真实固相不同。p/φm 是端点校准得到的有效特性黏数。</p>
+<h3>完整 K–D</h3><p class="formula">η = η<sub>l</sub>(1 − φ/φ<sub>m</sub>)<sup>−p</sup></p><p>输入对应密度、气体处理、液相黏度及 φm，单独拟合 p。这个版本不强制穿过两个端点。两种 K–D 图线都只连接已输入物性的计算位置。</p>
+<h3>公式依据</h3><p>K–D 原式见以下文献；两端归一化为本工具对原式取比值、取对数的代数推导。两端幂律是本研究的经验标定基线。</p>
+<p><a href="https://doi.org/10.1016/j.powtec.2014.05.044" target="_blank" rel="noopener noreferrer">Konijn et al. Powder Technol., 2014, 266: 61–69.</a><br><a href="https://doi.org/10.1007/s00397-021-01320-1" target="_blank" rel="noopener noreferrer">Wilms et al. Rheol. Acta, 2022, 61: 123–138.</a></p>
+<h3>误差与记录</h3><p>MAE 为平均绝对误差；RMSE 更重视较大误差，单位均为 Pa·s。n 为评分的不同中间配水位置数，同一位置重复读数先平均。少于两个位置或实测值相同时不报告 R²。</p><p>输入、文件读取和计算在浏览器完成，不上传配方或黏度。刷新前请自行保存。JSON 校验可发现损坏与计算不一致，设备时间不等于第三方实验时间证明。</p></div></dialog>
 <div class="toast" id="toast" role="status" hidden></div>
 </body></html>

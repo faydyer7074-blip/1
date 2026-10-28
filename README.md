@@ -1,15 +1,45 @@
-# Slag slurry viscosity calculator
+# 连铸保护渣浆料黏度预测网页
 
-A static, browser-local tool for predicting intermediate apparent viscosity from measured endpoints of the same formulation. Open `index.html` through a static web host.
+在线静态网页；计算在浏览器进行，不上传配方、黏度、物性或导入记录。
 
-## Models and data
-- Main calculator: two-endpoint power-law interpolation over the supplied water-to-powder interval.
-- Optional physical candidate: K–D with corresponding phase properties and an externally supplied limiting-concentration parameter.
-- Model identity and measured/literature/assumed provenance remain attached to validation and exported results.
-- Input and imported records stay in the visitor browser. No private formulation workbook or historical measurement table is included.
+## 功能
 
-## GitHub Pages
-Publish the `main` branch from `/(root)` in repository Settings > Pages. All resource paths are relative, so a repository subpath is supported. The `.nojekyll` marker requests plain static-file serving.
+- 首末实测点与中间水干比输入，生成两端幂律预测。
+- 曲线、数值表、CSV与PNG导出；Pa·s和mPa·s输入。
+- 保存含实验条件的预测JSON，复算核对后导入验证。
+- 粘贴两列中间实测，重复水比先取均值，已知端点不评分，报告缺测位置。
+- K–D物性模块默认折叠，可选两端归一化或完整物性模型。
+- 两端归一化：输入各点φ、独立φm及来源，首末黏度求有效指数p；液相不变时无需液相黏度绝对值，变化时输入逐点液相比g。
+- 保存、载入、CSV及PNG保留模型、物性来源类型、φ定义与液相条件；CSV/JSON另保留完整依据。
 
-## Scientific scope
-The tool is a calculation and validation interface. Algebraic software checks are distinct from material experiments. Independent new-batch and physical-model validation require actual measurements.
+页面不附带真实配方工作簿或历史实验表。所有输入初始为空，提示中的示例水比不是新增实验。算法核心复用已有已核对的core.js；网站的外观和输入层单独实现。
+
+## 复现
+
+静态目录为dist，无依赖安装或构建步骤。用任意静态HTTP服务预览。支持现代Chrome、Edge、Firefox与Safari；保存记录需要安全上下文中的Web Crypto。
+
+```text
+node --check dist/app.js
+node tests/test-observations.cjs
+node tests/test-online-record.cjs
+node tests/test-physics-online.cjs
+node --test tests/test-normalized-kd.cjs
+```
+
+tests中的数值仅为代数软件测试，不是材料实验，不用于论文准确率。
+
+预测JSON沿用slurry-offline-freeze-v1协议以兼容旧HTML工具；Windows桌面JSON属于另一协议，不声称自动兼容。完整性校验用于发现损坏与输入结果不一致，不等于外部时间戳或独立验证证明。
+
+## 模型
+
+首页使用首末两端幂律，不运行原Python Ridge模型。物性分析提供两个独立方法，均限首末水比区间，没有默认材料物性。
+
+两端归一化K–D（kd_endpoint_normalized）：令F=1−φ/φm，g=ηl(r)/ηl(ra)，则η=ηa·g·(F/Fa)^(−p)，p=[ln(ηa/ηb)+ln(gb)]/[ln(Fb)−ln(Fa)]。先固定有来源的φ(r)、0<φm<1和g，再由两端求一个正的有效指数p。首点g必须为1。液相不变需明确选择g=1；不同配水量的溶解物浓度可能改变，不能仅凭同温度推定g=1。p/φm为校准派生量。
+
+φ可采用材料固相、名义干料或有效体积分数的明确口径。名义干料方案不能标为实测湿态固相，需写明不溶与体积可加等条件。图线只连接已提供物性的计算位置。
+
+完整K–D（kd_physical_candidate）：密度、液相黏度、气体处理、堆积参数均给定，首末点最小二乘拟合p，不强制穿过两个端点。
+
+K–D原式核对依据：Konijn et al. Powder Technol., 2014, 266: 61–69, DOI:10.1016/j.powtec.2014.05.044；Wilms et al. Rheol. Acta, 2022, 61: 123–138, DOI:10.1007/s00397-021-01320-1。两端归一化为本工具对原式取比值、取对数的代数推导，完整标定协议不冒称照搬文献。
+
+物性记录导入后持续显示模型和来源声明；支持展开首末点拟合差。图像与CSV导出保留方法和情景身份。核心版本1.2.0-research，兼容1.0/1.1的既有幂律及完整K–D记录；未知方法或方法/参数不匹配直接拒绝。测试夹具仅作软件核对，不是材料实验。tests/fixtures/legacy-core-1.1.cjs保留原数值实现供兼容性复算。

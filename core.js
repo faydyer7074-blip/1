@@ -1,7 +1,7 @@
 /* Local, dependency-free numerical core. No network, model fitting service or imputed properties. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.SlurryCore=api;})(globalThis,function(){
 'use strict';
-const VERSION='1.1.0-research';
+const VERSION='1.2.0-research';
 const close=(a,b)=>Math.abs(a-b)<=1e-10*Math.max(1,Math.abs(a),Math.abs(b));
 function number(v,name,positive=false){
  if(v===null||typeof v==='boolean'||typeof v==='object'||(typeof v==='string'&&!v.trim()))throw Error(name+'：请填写数值。');
@@ -63,6 +63,50 @@ function physical(c,rs,props,evidence){
  return {method:'kd_physical_candidate',exponent,intrinsicEffective:exponent/phiMax,phiMax,rows,anchorResiduals:residual,physicalEvidence:evidence,
  warnings:['K–D 为待验证物理候选；只拟合一个指数，不强制穿过两个端点。',...(evidence.kind!=='measured'?['物性含文献值或假设值：仅作情景计算。']:[]),...(evidence.gasTreatment==='negligible_assumption'?['体积分数采用忽略气体假设。']:[])],scope:'实际固/液密度、液相黏度和独立堆积参数进入公式；拟合的有效特性黏数不是直接测得的粒子形状。'};
 }
+function normalizedPhysical(c,rs,props,evidence){
+ const {a,b}=anchors(c),ratios=targets(c,rs);
+ if(!evidence||!['measured','literature','assumed'].includes(evidence.kind))throw Error('请选择物性来源类型。');
+ for(const key of ['source','phaseDefinition','phiMaxSource'])nonempty(evidence[key],'物性 '+key);
+ if(!['material_volume','nominal_dry_volume','effective_volume'].includes(evidence.phiBasis))throw Error('请选择体积分数的定义。');
+ if(evidence.phiBasis==='nominal_dry_volume'&&evidence.kind==='measured')throw Error('名义干料体积分数应标为文献或假设情景，不能标为实测湿态固相。');
+ if(evidence.conditionsMatched!==true)throw Error('请确认各点采用相同的体积定义、配方与测量条件。');
+ if(!['constant','specified_ratio'].includes(evidence.liquidMode))throw Error('请选择液相黏度处理方式。');
+ if(evidence.liquidMode==='constant'&&evidence.constantLiquidConfirmed!==true)throw Error('需明确采用液相黏度不变的计算条件。');
+ const phiMax=number(evidence.phiMax,'最大堆积体积分数',true);if(phiMax>=1)throw Error('最大堆积体积分数应小于 1。');
+ if(!Array.isArray(props)||!props.length)throw Error('请填写首末点及中间位置的体积分数。');
+ const points=[];
+ for(const v of props){
+  const r=number(v.r,'物性对应水干比',true),phi=number(v.phi,'体积分数 φ');
+  if(points.some(x=>close(x.r,r)))throw Error('物性水干比重复。');
+  if(!ratios.some(x=>close(x,r))&&!close(r,a.r)&&!close(r,b.r))throw Error('物性水干比 '+r+' 不在本次计算位置中。');
+  if(phi<0||phi>=phiMax)throw Error('需要 0 ≤ φ < φm；不能达到最大堆积参数。');
+  const g=evidence.liquidMode==='constant'?1:number(v.liquidRatio,'液相黏度比 g',true);
+  if(evidence.liquidMode==='constant'&&v.liquidRatio!==undefined&&number(v.liquidRatio,'液相黏度比 g',true)!==1)throw Error('恒定液相模式的 g 必须为 1。');
+  points.push({r,phi,g,logF:Math.log1p(-phi/phiMax)});
+ }
+ const find=r=>{const value=points.find(x=>close(x.r,r));if(!value)throw Error('缺少水干比 '+r+' 的体积分数或液相比。');return value;};
+ const aa=find(a.r),bb=find(b.r);
+ if(!(aa.phi>bb.phi))throw Error('增水标定需要首点体积分数大于末点。');
+ if(aa.g!==1)throw Error('液相黏度比以首点为基准，首点 g 应为 1。');
+ const span=bb.logF-aa.logF;if(span<=1e-10)throw Error('两端体积分数过近，无法稳定识别指数。');
+ const exponent=(Math.log(a.eta)-Math.log(b.eta)+Math.log(bb.g))/span;
+ if(!Number.isFinite(exponent)||exponent<=0)throw Error('端点及液相比不支持正的 K–D 指数。');
+ const predict=p=>{const eta=Math.exp(Math.log(a.eta)+Math.log(p.g)-exponent*(p.logF-aa.logF));if(!Number.isFinite(eta*1000)||eta<=0)throw Error('K–D 预测超出数值范围。');return eta;};
+ const rows=ratios.map(r=>{const p=find(r);if(p.phi<bb.phi||p.phi>aa.phi)throw Error('中间 φ 应在首末点的体积分数区间内。');return {r,etaPa:predict(p),etaMPa:predict(p)*1000,phi:p.phi,liquidRatio:p.g,role:role(r,c)};});
+ return {method:'kd_endpoint_normalized',exponent,intrinsicEffective:exponent/phiMax,phiMax,rows,anchorResiduals:[{r:a.r,measured:a.eta,predicted:predict(aa)},{r:b.r,measured:b.eta,predicted:predict(bb)}],physicalEvidence:evidence,
+  warnings:[evidence.liquidMode==='constant'?'液相黏度按不随配水变化计算（g = 1）。':'采用逐点给定的液相黏度比。',...(evidence.phiBasis==='nominal_dry_volume'?['φ 为名义干料体积分数。']:[]),...(evidence.kind!=='measured'?['物性为文献或假设情景。']:[])],scope:'两端归一化 K–D；固定有来源的 φ、φm 和液相黏度比，首末实测只确定有效指数 p。仅连接已输入物性位置，不增加实测点。'};
+}
+function modelResult(input,rs,physics,version=VERSION){
+ if(physics===null||physics===undefined)return power(input,rs);
+ if(typeof physics!=='object'||Array.isArray(physics))throw Error('物性模型记录格式错误。');
+ if(Object.keys(physics).some(k=>!['method','properties','evidence'].includes(k)))throw Error('物性模型记录含不支持的混合参数。');
+ if(physics.method==='kd_endpoint_normalized'){
+  if(version!==VERSION)throw Error('该版本不支持两端归一化 K–D。');
+  return normalizedPhysical(input,rs,physics.properties,physics.evidence);
+ }
+ if(physics.method===undefined||physics.method==='kd_physical_candidate')return physical(input,rs,physics.properties,physics.evidence);
+ throw Error('未知物性模型，不能替换为其他方法。');
+}
 function metrics(actual,pred){
  if(actual.length!==pred.length||!actual.length)throw Error('没有可评分的中间点。');
  const n=actual.length,mean=actual.reduce((s,x)=>s+x,0)/n,sse=actual.reduce((s,x,i)=>s+(x-pred[i])**2,0),sst=actual.reduce((s,x)=>s+(x-mean)**2,0);
@@ -89,18 +133,18 @@ async function digest(obj){if(!globalThis.crypto?.subtle)throw Error('浏览器�
 async function freeze(input,rs,meta,physics){
  nonempty(meta.formulaID,'配方编号');nonempty(meta.batchID,'本轮验证组编号');
  nonempty(meta.recipeText,'配方记录');nonempty(meta.conditions,'制浆和测量条件');
- const result=physics?physical(input,rs,physics.properties,physics.evidence):power(input,rs);
+ const result=modelResult(input,rs,physics);
  const body={schema:'slurry-offline-freeze-v1',appVersion:VERSION,createdAt:new Date().toISOString(),clock:'设备时间，非第三方时间证明',input:JSON.parse(JSON.stringify(input)),ratios:targets(input,rs),meta:JSON.parse(JSON.stringify(meta)),physics:physics?JSON.parse(JSON.stringify(physics)):null,result};
  return {...body,integrity:{algorithm:'SHA-256',sha256:await digest(body)}};
 }
 async function verify(snapshot){
- if(snapshot?.schema!=='slurry-offline-freeze-v1'||!['1.0.0-research',VERSION].includes(snapshot?.appVersion))throw Error('预测记录版本不支持。');
+ if(snapshot?.schema!=='slurry-offline-freeze-v1'||!['1.0.0-research','1.1.0-research',VERSION].includes(snapshot?.appVersion))throw Error('预测记录版本不支持。');
  const {integrity,...body}=snapshot;if(integrity?.algorithm!=='SHA-256'||await digest(body)!==integrity.sha256)throw Error('预测记录校验失败，文件可能被修改或损坏。');
- const expected=body.physics?physical(body.input,body.ratios,body.physics.properties,body.physics.evidence):power(body.input,body.ratios);
+ const expected=modelResult(body.input,body.ratios,body.physics,body.appVersion);
  if(!replayEqual(expected,body.result))throw Error('保存的预测与输入不一致。');
  nonempty(body.meta.formulaID,'配方编号');nonempty(body.meta.batchID,'批次编号');nonempty(body.meta.recipeText,'配方记录');nonempty(body.meta.conditions,'制浆和测量条件');return true;
 }
 function csvValue(v){let s=v===null||v===undefined?'':String(v);if(typeof v==='string'&&/^[=+\-@]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';}
 function toCSV(headers,rows){return '\uFEFF'+[headers,...rows].map(row=>row.map(csvValue).join(',')).join('\r\n');}
-return {VERSION,number,pa,anchors,targets,role,power,phiDensity,nominalPhi,physical,metrics,score,canonical,digest,freeze,verify,toCSV,close,replayEqual};
+return {VERSION,number,pa,anchors,targets,role,power,phiDensity,nominalPhi,physical,normalizedPhysical,modelResult,metrics,score,canonical,digest,freeze,verify,toCSV,close,replayEqual};
 });
